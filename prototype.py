@@ -54,6 +54,8 @@ def get_word_prototype(word):
 
         return path_points
 
+if __name__ == '__main__':
+    print(get_word_prototype('palavra'))
 
             
 
