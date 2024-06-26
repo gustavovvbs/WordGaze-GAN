@@ -141,3 +141,76 @@ class Generator(tf.keras.Model):
     #compute latent reconstruction loss
     def L_rec(self, fake_output, real_output):
         return tf.reduce_mean(tf.abs(fake_output - real_output))
+
+###<-<------------TRAINING------------>###
+
+DISC_UPDATES = 5
+BATCH_SIZE = 512
+learning_rate = 0.0002
+lambda_feat = 1
+lambda_rec = 5
+lambda_lat = 0.5
+lambda_KLD = 0.05
+
+
+#ver se vale a pena fazer uma funcao p pegar os input do gerador ou puxar tudo aq tipo prototipo e gesto real 
+#n sei se fazer inputs fixos eh bom
+def train_step(generator, discriminator1, discriminator2, encoder, real_data, optimizer_G, optimizer_D, optimizer_E):
+    z = tf.random.normal(shape=(BATCH_SIZE, 32))
+
+    # First cycle: z -> X' -> z'
+    #update the discriminator 5 times for 1 generator update
+    for _ in range(5):
+        with tf.GradientTape() as disc_tape1:
+            prototype = get_prototype(real_data['word'])
+            gen_input = tf.concat([tf.tile(z, [1, 35]), prototype], axis=1)
+            fake_data = generator(gen_input, training=True)
+            mu_fake, log_var_fake = encoder(fake_data)
+            z_generated = encoder.reparameterize(mu_fake, log_var_fake)
+
+            disc_loss_cycle1 = discriminator1.disc_loss(fake_data, real_data['path'])
+
+        disc1_gradients = disc_tape1.gradient(disc_loss_cycle1, discriminator1.trainable_variables)
+        optimizer_D.apply_gradients(zip(disc1_gradients, discriminator1.trainable_variables))
+
+    with tf.GradientTape() as gen_tape1:
+        prototype = get_prototype(real_data['word'])
+        gen_input = tf.concat([tf.tile(z, [1, 35]), prototype], axis=1)
+        fake_data = generator(gen_input, training=True)
+        mu_fake, log_var_fake = encoder(fake_data)
+        z_generated = encoder.reparameterize(mu_fake, log_var_fake)
+
+        gen_loss1 = generator.gen_loss(discriminator1, encoder, fake_data, real_data['path'], z, z_generated)
+
+    gen_gradients_cycle1 = gen_tape1.gradient(gen_loss1, generator.trainable_variables)
+    optimizer_G.apply_gradients(zip(gen_gradients_cycle1, generator.trainable_variables))
+
+    # Second cycle: X -> z -> X'
+    #for each generator update, update discirminator 5 times
+    for _ in range(5):
+        with tf.GradientTape() as disc_tape2:
+            mu_real, log_var_real = encoder(real_data['path'])
+            z_real = encoder.reparameterize(mu_real, log_var_real)
+            prototype = get_prototype(real_data['word'])
+            gen_input = tf.concat([tf.tile(z_real, [1, 35]), prototype], axis=1)
+            fake_data = generator(gen_input, training=True)
+            disc_loss_cycle2 = discriminator2.disc_loss(fake_data, real_data['path'])
+        disc2_gradients = disc_tape2.gradient(disc_loss_cycle2, discriminator2.trainable_variables)
+        optimizer_D.apply_gradients(zip(disc2_gradients, discriminator2.trainable_variables))
+    
+    with tf.GradientTape(persistent = True) as tape:
+        mu_real, log_var_real = encoder(real_data['path'])
+        z_real = encoder.reparameterize(mu_real, log_var_real)
+        prototype = get_prototype(real_data['word'])
+        gen_input = tf.concat([tf.tile(z_real, [1, 35]), prototype], axis=1)
+        fake_data = generator(gen_input, training=True)
+        gen_loss2 = generator.gen_loss(discriminator2, encoder, fake_data, real_data['path'], z_real, z_real)
+
+    enc_gradients = tape.gradient(gen_loss2, encoder.trainable_variables)
+    gen_gradients_cycle2 = tape.gradient(gen_loss2, generator.trainable_variables)
+
+    optimizer_E.apply_gradients(zip(enc_gradients, encoder.trainable_variables))
+    optimizer_G.apply_gradients(zip(gen_gradients_cycle2, generator.trainable_variables))
+
+    print('treinado!')
+
