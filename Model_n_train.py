@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import os 
 import scipy.special as sp
+from prototype import get_batch_prototypes
 
 ###<--------VARIATIONAL ENCODER------->###
 
@@ -143,7 +144,7 @@ class Generator(tf.keras.Model):
         return tf.reduce_mean(tf.abs(fake_output - real_output))
 
 ###<-<------------TRAINING------------>###
-
+    
 DISC_UPDATES = 5
 BATCH_SIZE = 512
 learning_rate = 0.0002
@@ -162,7 +163,7 @@ def train_step(generator, discriminator1, discriminator2, encoder, real_data, op
     #update the discriminator 5 times for 1 generator update
     for _ in range(5):
         with tf.GradientTape() as disc_tape1:
-            prototype = get_prototype(real_data['word'])
+            prototype = get_batch_prototypes(real_data['word'])
             gen_input = tf.concat([tf.tile(z, [1, 35]), prototype], axis=1)
             fake_data = generator(gen_input, training=True)
             mu_fake, log_var_fake = encoder(fake_data)
@@ -174,7 +175,7 @@ def train_step(generator, discriminator1, discriminator2, encoder, real_data, op
         optimizer_D.apply_gradients(zip(disc1_gradients, discriminator1.trainable_variables))
 
     with tf.GradientTape() as gen_tape1:
-        prototype = get_prototype(real_data['word'])
+        prototype = get_batch_prototypes(real_data['word'])
         gen_input = tf.concat([tf.tile(z, [1, 35]), prototype], axis=1)
         fake_data = generator(gen_input, training=True)
         mu_fake, log_var_fake = encoder(fake_data)
@@ -191,7 +192,7 @@ def train_step(generator, discriminator1, discriminator2, encoder, real_data, op
         with tf.GradientTape() as disc_tape2:
             mu_real, log_var_real = encoder(real_data['path'])
             z_real = encoder.reparameterize(mu_real, log_var_real)
-            prototype = get_prototype(real_data['word'])
+            prototype = get_batch_prototypes(real_data['word'])
             gen_input = tf.concat([tf.tile(z_real, [1, 35]), prototype], axis=1)
             fake_data = generator(gen_input, training=True)
             disc_loss_cycle2 = discriminator2.disc_loss(fake_data, real_data['path'])
@@ -201,7 +202,7 @@ def train_step(generator, discriminator1, discriminator2, encoder, real_data, op
     with tf.GradientTape(persistent = True) as tape:
         mu_real, log_var_real = encoder(real_data['path'])
         z_real = encoder.reparameterize(mu_real, log_var_real)
-        prototype = get_prototype(real_data['word'])
+        prototype = get_batch_prototypes(real_data['word'])
         gen_input = tf.concat([tf.tile(z_real, [1, 35]), prototype], axis=1)
         fake_data = generator(gen_input, training=True)
         gen_loss2 = generator.gen_loss(discriminator2, encoder, fake_data, real_data['path'], z_real, z_real)
