@@ -2,10 +2,27 @@ import tensorflow as tf
 from tensorflow.keras import layers, Model 
 from tensorflow.layers import SpectralNormalization
 import pandas as pd 
+import json
 import numpy as np
 import os 
 import scipy.special as sp
 from prototype import get_batch_prototypes
+
+###<------------DATA------------>###
+with open('gestures_data.json', 'r') as f:
+    data = json.load(f)
+
+def generate_dataset():
+    for item in data:
+        yield item
+
+dataset = tf.data.Dataset.from_generator(
+    data_generator,
+    output_signature={
+        'word': tf.TensorSpec(shape = (), dtype=tf.string),
+        'path': tf.TensorSpec(shape = (128, 3), dtype = tf.float32)
+    }
+)
 
 ###<--------VARIATIONAL ENCODER------->###
 

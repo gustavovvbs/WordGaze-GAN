@@ -41,7 +41,7 @@ def log_treater(folder):
         "x_pos", "y_pos", "x_radius", "y_radius", "angle", "word", "is_err"
     ]
 
-    for log in logs[:3]: 
+    for log in logs: 
         if log.endswith('.log'):
             with open(os.path.join(folder, log)) as file:
                 content = file.readlines()
@@ -107,4 +107,4 @@ def log_treater(folder):
     print(f"Processed and saved gestures data in gestures_data.json")
 
 if __name__ == '__main__':
-    log_treater('experiments/logs')
+    log_treater('C:/Users/gugu1/Documents/GitHub/swipetest/experiments/logs/')
