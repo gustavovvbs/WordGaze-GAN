@@ -21,12 +21,34 @@ def normalize_and_adjust_timestamps(df):
 
     # normaliza x e y em relacao às dimensoes do teclado
     df["x_pos"] = (df["x_pos"] / keyb_width) * 2 - 1
-    df["y_pos"] = (df["y_pos"] / keyb_height) * 2 - 1
+    df["y_pos"] = -(df["y_pos"] / keyb_height) * 2 + 1
+    # for x in df['x_pos']:
+    #     if x > 1 or x < -1:
+    #         print(x)
+    # for y in df['y_pos']:
+    #     if y > 1 or y < -1:
+    #         print(y)
+
 
     #caclcula os timestamps(diferencas entre dois pontos seguidos e divide por 1000 p ser em segundos)
     df["timestamp"] = (df["timestamp"].diff().fillna(0) / 1000).astype(float)
+    df = df[df["timestamp"] >= 0]
+    df = df[df["timestamp"] <= 1]
 
-    # cria o tensor [x, y, t]
+    if df["timestamp"].min() < 0:
+        print("Negative timestamps found")
+        print(df[df["timestamp"] < 0])
+
+    # Calculate the number of rows needed to reach 128
+    num_rows_to_add = 128 - len(df)
+
+    if num_rows_to_add > 0:
+        # Create a DataFrame with the padding rows
+        padding_rows = pd.DataFrame([df.iloc[-1]] * num_rows_to_add, columns=df.columns)
+        
+        # Concatenate the original DataFrame with the padding rows
+        df = pd.concat([df, padding_rows], ignore_index=True)
+
     tensors = df[["x_pos", "y_pos", "timestamp"]].to_numpy()
     return tensors
 
@@ -83,6 +105,7 @@ def log_treater(folder):
 
                     gesture_entry = {'word': entry['word'], 'path': [tensor]}
                     all_gestures.append(gesture_entry)
+
 
     # separa por palavra
     grouped_gestures = {}

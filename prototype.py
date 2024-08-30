@@ -1,5 +1,6 @@
-import matplotlib.pyplot as plt 
-import numpy as np 
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
 
 keyboard = {
     'q': (-0.9, -0.6666666666666666), 'w': (-0.7, -0.6666666666666666), 'e': (-0.5, -0.6666666666666666),
@@ -17,65 +18,72 @@ keyboard = {
 }
 
 def get_coordinates(sentence):
-    return [(keyboard[char][0], keyboard[char][1]) for char in sentence]
+    coordinates = []
+
+    for char in sentence:
+        if char in keyboard:
+            coordinates.append([keyboard[char][0], keyboard[char][1]])
+            
+    return coordinates
 
 def get_word_prototype(word):
-    coordinates = get_coordinates(word)
+    try:
+        coordinates = get_coordinates(word)
 
-    fig, ax = plt.subplots()
+        x, y = zip(*coordinates)
+        x, y = np.array(x), np.array(y)
 
-    for key, coord in keyboard.items():
-        if key == ' ':
-            ax.add_patch(plt.Rectangle((coord[1]-1.13, -coord[0]-0.6), 4.75, 1, fill=None))
-        else:
-            ax.text(coord[1], -coord[0], key, ha='center', va='center')
-            ax.add_patch(plt.Rectangle((coord[1]-0.4, -coord[0]-0.4), 0.8, 0.8, fill=None))
+        n = 128
+        k = len(coordinates)
 
-    x, y = zip(*coordinates)
-    x, y = np.array(x), np.array(y)
+        path_points = []
 
-    n = 128
-    k = len(coordinates)
+        for i in range(len(coordinates) - 1):
+            num_points = (n - k) // (k - 1)  # Calculate the number of points between each pair of coordinates
 
-    path_points = []
+            x_values = np.linspace(coordinates[i][0], coordinates[i+1][0], num_points, endpoint=False) 
+            y_values = np.linspace(coordinates[i][1], coordinates[i+1][1], num_points, endpoint=False)
 
-    for i in range(len(coordinates) - 1):
-        num_points = (n - k) // (k - 1)  # Calculate the number of points between each pair of coordinates
+            path_points.extend(list(zip(x_values, y_values)))
+        
+        path_points.append(coordinates[-1])
 
-        x_values = np.linspace(coordinates[i][0], coordinates[i+1][0], num_points, endpoint=False) 
-        y_values = np.linspace(coordinates[i][1], coordinates[i+1][1], num_points, endpoint=False)
+        if len(path_points) < 128:
+            while len(path_points) < 128:
+                path_points.append(coordinates[-1])
+        elif len(path_points) > 128:
+            path_points = path_points[:128]
 
-        path_points.extend(list(zip(x_values, y_values)))
-    
-    path_points.append(coordinates[-1])
+        path_pointsnp = np.array(path_points)
 
-    if len(path_points) < 128:
-        while len(path_points) < 128:
-            path_points.append(coordinates[-1])
-    elif len(path_points) > 128:
-        path_points = path_points[:128]
+        ones = np.zeros((128, 1))
+        path_pointsnp = np.hstack((path_pointsnp, ones))
 
-    path_pointsnp = np.array(path_points)
+        # Plot the word path
+        plt.figure(figsize=(6, 6))
+        plt.plot(path_pointsnp[:, 0], path_pointsnp[:, 1], marker='o')
+        plt.xlim(-1, 1)
+        plt.ylim(-1, 1)
+        plt.title(f"Path for word: {word}")
+        plt.show()
 
-    ones = np.zeros((128, 1))
-    path_pointsnp = np.hstack((path_pointsnp, ones))
-
-    # ax.plot(path_pointsnp[:, 1], -path_pointsnp[:, 0], 'bo', markersize=3, linestyle='-')
-    # ax.set_aspect('equal')
-    # ax.set_xlim(-1, 10)
-    # ax.set_ylim(-4, 1)
-    # ax.axis('off')
-
-    # plt.show()
-
-    return path_pointsnp
+        return torch.tensor(path_pointsnp, dtype=torch.float32)
+    except Exception as e:
+        print(f'Error with word: {word}: {e}')
+        return torch.zeros((128, 3), dtype=torch.float32)
 
 def get_batch_prototypes(words):
-    prototypes = np.array([get_word_prototype(word) for word in words])
-    return prototypes
+    prototypes = []
+    for word in words:
+        prototypes.append(get_word_prototype(word.lower()))
+    
+    return torch.stack(prototypes)
 
 if __name__ == '__main__':
-    words = ['insper', 'rolamole', 'cadeira']
-    batch_prototypes = get_batch_prototypes(words)
-    print(batch_prototypes)
-    print(batch_prototypes.shape)
+    
+    words = ['Hello']
+
+    sla = get_batch_prototypes(words)
+    
+    print(sla)
+    print(sla.shape)
