@@ -157,7 +157,7 @@ def generate_dataset():
     for item in data:
         yield item
 
-# Converte os dados para uma lista de dicionários PyTorch
+# Converte os dados pra uma lista de dicionários PyTorch
 dataset = list(generate_dataset())
 dataset = [{'word': item['word'], 'path': torch.tensor(item['path'])} for item in dataset]
 
@@ -171,7 +171,7 @@ lambda_KLD = 0.05
 EPOCHS = 10
 
 
-####<---GRADIENT PENALTY TEST----->####
+####<---GRADIENT PENALTY TEST-----> [[[[NOT IMPLEMENTED YET]]]]####
 def gradient_penalty(discriminator, generator, real_data, fake_data):
     batch_size, c, h, w = real_data.shape
     eps = torch.randn((batch_size, 1, 1, 1)).repeat(1, c, h, w).to(device)
