@@ -1,13 +1,62 @@
-import json
-import matplotlib.pyplot as plt
-
-# Carregar o arquivo JSON
-with open('gestures_data.json', 'r') as file:
-    data = json.load(file)
-
 import torch
-import numpy as np
-import matplotlib.pyplot as plt
+from torch.autograd import Variable
+import numpy as np 
+'''
+    < var >
+    Convert tensor to Variable
+'''
+def var(tensor, requires_grad=True):
+    if torch.cuda.is_available():
+        dtype = torch.cuda.FloatTensor
+    else:
+        dtype = torch.FloatTensor
+        
+    var = Variable(tensor.type(dtype), requires_grad=requires_grad)
+    
+    return var
+
+'''
+    < make_img >
+    Generate images
+
+    * Parameters
+    dloader : Data loader for test data set
+    G : Generator
+    z : random_z(size = (N, img_num, z_dim))
+        N : test img number / img_num : Number of images that you want to generate with one test img / z_dim : 8
+    img_num : Number of images that you want to generate with one test img
+'''
+def make_img(dloader, G, z, img_num=5, img_size=128):
+    if torch.cuda.is_available():
+        dtype = torch.cuda.FloatTensor
+    else:
+        dtype = torch.FloatTensor
+        
+    dloader = iter(dloader)
+    img, _ = next(dloader)
+
+    N = img.size(0)    
+    img = var(img.type(dtype))
+
+    result_img = torch.FloatTensor(N * (img_num + 1), 3, img_size, img_size).type(dtype)
+
+    for i in range(N):
+        # original image to the leftmost
+        result_img[i * (img_num + 1)] = img[i].data
+
+        # Insert generated images to the next of the original image
+        for j in range(img_num):
+            img_ = img[i].unsqueeze(dim=0)
+            z_ = z[i, j, :].unsqueeze(dim=0)
+            
+            out_img = G(img_, z_)
+            result_img[i * (img_num + 1) + j + 1] = out_img.data
+
+
+    # [-1, 1] -> [0, 1]
+    result_img = result_img / 2 + 0.5
+    
+    return result_img
 
 keyboard = {
     'q': (0.05, 0.16666666666666669), 'w': (0.15, 0.16666666666666669), 'e': (0.25, 0.16666666666666669),
@@ -74,13 +123,13 @@ def get_word_prototype(word):
         ones = np.zeros((128, 1))
         path_pointsnp = np.hstack((path_pointsnp, ones))
 
-        # Plot the word path
-        plt.figure(figsize=(10, 6))
-        plt.plot(path_pointsnp[:, 0], path_pointsnp[:, 1], marker='o')
-        plt.xlim(-2, 2)
-        plt.ylim(-2, 2)
-        plt.title(f"Path for word: {word}")
-        plt.show()
+        # # Plot the word path
+        # plt.figure(figsize=(10, 6))
+        # plt.plot(path_pointsnp[:, 0], path_pointsnp[:, 1], marker='o')
+        # plt.xlim(-2, 2)
+        # plt.ylim(-2, 2)
+        # plt.title(f"Path for word: {word}")
+        # plt.show()
 
         return torch.tensor(path_pointsnp, dtype=torch.float32)
     except Exception as e:
@@ -93,29 +142,3 @@ def get_batch_prototypes(words):
         prototypes.append(get_word_prototype(word.lower()))
     
     return torch.stack(prototypes)
-
-# Função para plotar um gesto
-def plot_gesture(gesture):
-    x = [point[0] for point in gesture['path']]
-    y = [-point[1] for point in gesture['path']]
-    z = [point[2] for point in gesture['path']]
-
-    for item in x:
-        if item >1:
-            print(item)
-    plt.figure(figsize=(10, 6))
-    plt.plot(x, y, marker='o')
-    plt.title(f"Gesto: {gesture['word']}")
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.gca().invert_yaxis()
-    # plt.xlim(-2, 2)
-    plt.ylim(-2, 2)
-    plt.xlim(-2, 2)
-    plt.grid(True)
-    plt.show()
-
-# Plotar o primeiro gesto como exemplo
-plot_gesture(data[2])
-words = ['bottle']
-sla = get_batch_prototypes(words)

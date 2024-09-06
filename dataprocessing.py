@@ -3,6 +3,8 @@ import re
 import json
 import numpy as np
 import pandas as pd
+import json 
+
 
 def preprocess_gesture(df):
     num_points = len(df)
