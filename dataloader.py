@@ -27,10 +27,11 @@ class GestureDataset(Dataset):
         return self.data_len
     
     def __getitem__(self, idx):
-        return torch.tensor(self.data[idx]['path']).float(), self.data[idx]['word']
+            
+        return torch.tensor(self.data[idx]['swipe']).float(), self.data[idx]['word']
 
 def dataloader(root, batch_size = 512, test_size = 20, mode = 'train'):
     dataset = GestureDataset(root, mode = mode, test_size = test_size)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True, drop_last=True)
     
     return dataloader, len(dataset)

@@ -10,6 +10,23 @@ import matplotlib.pyplot as plt
 import os 
 
 
+keyboard_layout = {
+    'q': (-0.9, 0.9), 'w': (-0.7, 0.9), 'e': (-0.5, 0.9), 'r': (-0.3, 0.9), 't': (-0.1, 0.9),
+    'y': (0.1, 0.9), 'u': (0.3, 0.9), 'i': (0.5, 0.9), 'o': (0.7, 0.9), 'p': (0.9, 0.9),
+    'a': (-0.85, 0.7), 's': (-0.65, 0.7), 'd': (-0.45, 0.7), 'f': (-0.25, 0.7), 'g': (-0.05, 0.7),
+    'h': (0.15, 0.7), 'j': (0.35, 0.7), 'k': (0.55, 0.7), 'l': (0.75, 0.7),
+    'z': (-0.8, 0.5), 'x': (-0.6, 0.5), 'c': (-0.4, 0.5), 'v': (-0.2, 0.5), 'b': (0.0, 0.5),
+    'n': (0.2, 0.5), 'm': (0.4, 0.5)
+}
+
+key_size = 0.08  # Adjust this value for the visual size of each key
+
+def plot_keyboard(ax):
+    for key, (x, y) in keyboard_layout.items():
+        rect = plt.Rectangle((x - key_size / 2, y - key_size / 2), key_size, key_size, edgecolor='black', facecolor='lightgray')
+        ax.add_patch(rect)
+        ax.text(x, y, key, ha='center', va='center', fontsize=10)
+
 """ loss de waserstein 
     parametros:
     - real: dado real
@@ -28,7 +45,7 @@ def l1_loss(fake, real):
 
 
 class Solver():
-    def __init__(self, root = 'gestures_data.json', result_dir = 'result', weight_dir = 'weight', load_weight = False, batch_size = 512, test_size = 20, num_epoch = 100, save_every = 1000, lr = 0.0002, beta_1 = 0.5, beta_2 = 0.999, lambda_kl = 0.01, lambda_rec = 10, z_dim = 32, lambda_lat = 0.1):
+    def __init__(self, root = 'gestures_data.json', result_dir = 'C:/Users/gugu1/Documents/GitHub/swipetest/experiments/processed_gestures.json', weight_dir = 'weight', load_weight = False, batch_size = 256, test_size = 20, num_epoch = 100, save_every = 1000, lr = 0.0002, beta_1 = 0.5, beta_2 = 0.999, lambda_kl = 0.05, lambda_rec = 5, z_dim = 32, lambda_lat = 0.5):
 
         self.dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
@@ -53,7 +70,7 @@ class Solver():
 
         self.optim_E = torch.optim.Adam(self.E.parameters(), lr = lr, betas = (beta_1, beta_2))
 
-        self.fixed_z = var(torch.randn(512, z_dim), requires_grad = False)
+        self.fixed_z = var(torch.randn(256, z_dim), requires_grad = False)
 
         self.z_dim = z_dim 
         self.lambda_kl = lambda_kl 
@@ -142,8 +159,8 @@ class Solver():
                 real_pair_cVAE = real_path
                 fake_pair_cVAE = fake_gesture_cVAE
 
-                real_cVAE = self.D_cVAE(real_pair_cVAE)
-                fake_cVAE = self.D_cVAE(fake_pair_cVAE)
+                real_cVAE, _ = self.D_cVAE(real_pair_cVAE)
+                fake_cVAE, _ = self.D_cVAE(fake_pair_cVAE)
 
                 loss_D_cVAE = wasserstein_loss(fake_cVAE, real_cVAE)
 
@@ -152,8 +169,8 @@ class Solver():
                 real_pair_cLR = real_path
                 fake_pair_cLR = fake_gesture_cLR
 
-                D_cLR_real = self.D_cLR(real_pair_cLR)
-                D_cLR_fake = self.D_cLR(fake_pair_cLR)
+                D_cLR_real, _ = self.D_cLR(real_pair_cLR)
+                D_cLR_fake, _ = self.D_cLR(fake_pair_cLR)
 
                 loss_D_cLR = wasserstein_loss(D_cLR_fake, D_cLR_real)
                 D_loss = loss_D_cVAE + loss_D_cLR
@@ -170,16 +187,18 @@ class Solver():
                 random_z = var(torch.randn(real_path.size(0), self.z_dim)).type(self.dtype).to('cuda')
                 z = mu + std * random_z
 
+                D_cLR_real, real_activations = self.D_cLR(real_path)
+
                 fake_gesture_cVAE = self.G(prototype, z)
                 fake_pair_cVAE = fake_gesture_cVAE
-                D_cLR_fake = self.D_cLR(fake_pair_cVAE)
+                D_cLR_fake, _ = self.D_cLR(fake_pair_cVAE)
                 G_GAN_LOSS_CVAE = -torch.mean(D_cLR_fake)
 
                 #gerar pra clr agr 
                 random_z = var(torch.randn(real_path.size(0), self.z_dim)).type(self.dtype).to('cuda')
                 fake_gesture_cLR = self.G(prototype, random_z)
                 fake_pair_cLR = fake_gesture_cLR
-                D_cLR_fake = self.D_cLR(fake_pair_cLR)
+                D_cLR_fake, activations_fake = self.D_cLR(fake_pair_cLR)
                 G_GAN_LOSS_CLR = -torch.mean(D_cLR_fake)
 
                 G_GAN_LOSS = G_GAN_LOSS_CVAE + G_GAN_LOSS_CLR
@@ -189,7 +208,12 @@ class Solver():
 
                 img_rec_loss = self.lambda_rec * l1_loss(fake_gesture_cVAE, real_path)
 
-                EG_LOSS = G_GAN_LOSS + KL_DIV + img_rec_loss
+                z_feat_loss = 0
+                for real_act, fake_act in zip(real_activations, activations_fake):
+                    N_i = real_act.numel()
+                    z_feat_loss += l1_loss(real_act, fake_act) / N_i
+                    
+                EG_LOSS = G_GAN_LOSS + KL_DIV + img_rec_loss + z_feat_loss
 
                 self.all_zero_grad()
                 EG_LOSS.backward()
@@ -197,9 +221,17 @@ class Solver():
                 self.optim_E.step()
 
                 ''' treinar so o gerador na recursiva latente ''' 
+           
                 fake_img_cLR = self.G(prototype, random_z)
                 mu, log_var = self.E(fake_img_cLR)
                 z_rec_loss = self.lambda_lat * l1_loss(mu, random_z)
+               
+
+
+
+
+              
+                
 
                 self.all_zero_grad()
                 z_rec_loss.backward()
@@ -207,8 +239,8 @@ class Solver():
 
             # Print error, save intermediate result image and weight
                 if iters % self.save_every == 0:
-                    print('[Epoch : %d / Iters : %d] => D_loss : %f / G_GAN_loss : %f / KL_div : %f / img_recon_loss : %f / z_recon_loss : %f'\
-                            %(epoch, iters, D_loss.item(), G_GAN_LOSS.item(), KL_DIV.item(), img_rec_loss.item(), z_rec_loss.item()))
+                    print('[Epoch : %d / Iters : %d] => D_loss : %f / G_GAN_loss : %f / KL_div : %f / img_recon_loss : %f / z_recon_loss : %f / z_feat_loss : %f'
+                            %(epoch, iters, D_loss.item(), G_GAN_LOSS.item(), KL_DIV.item(), img_rec_loss.item(), z_rec_loss.item(), z_feat_loss.item()))
 
                     # Save intermediate result image
                     if os.path.exists(self.result_dir) is False:
@@ -221,21 +253,28 @@ class Solver():
                     generated_X, generated_Y = generated_gesture[:, :, 0], generated_gesture[:, :, 1]
 
                     for i in range(self.test_size):
-                        plt.plot(generated_X[i], generated_Y[i], marker='o')
-                        plt.xlim(-2, 2)
-                        plt.ylim(-2, 2)
+                        fig, ax = plt.subplots()
+                        plot_keyboard(ax)
+                        ax.plot(generated_X[i], generated_Y[i], marker='o',label='generated')
+                        ax.plot(real_data[0][i][:, 0], real_data[0][i][:, 1], marker='o', label='real')
+
+                        # Set limits to [-1, 1] to match the normalized coordinates
+                        ax.set_xlim(-1, 1)
+                        ax.set_ylim(-1, 1)
+
+                        # Add title and legend
                         plt.title('Generated gesture, word: {word}'.format(word=real_data[1][i]))
+                        plt.legend()
+
+                        # Save the plot
                         plt.savefig(os.path.join(self.result_dir, 'Generated_gesture_epoch_{epoch}_iter_{iters}.png'.format(epoch=epoch, iters=iters)))
                         plt.close()
 
-                    # Save intermediate weight
-                    if os.path.exists(self.weight_dir) is False:
-                        os.makedirs(self.weight_dir)
+                    # # Save intermediate weight
+                    # if os.path.exists(self.weight_dir) is False:
+                    #     os.makedirs(self.weight_dir)
                     
-                    self.save_weight()
                     
-                    # Save weight at the end of every epoch
-                    self.save_weight(epoch=epoch)
 
 
 

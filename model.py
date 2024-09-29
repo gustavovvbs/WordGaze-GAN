@@ -51,7 +51,14 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
-        return self.discriminator(x)
+        activations = []
+
+        for layer in self.discriminator:
+            x = layer(x)
+            if isinstance(layer, nn.Linear):
+                activations.append(x)
+                
+        return x, activations
 
 """ Gerador: gera um dado falso (dominio B) a partir de um vetor de ruído concatenado com o prototipo (dominio A)"""
 
@@ -75,5 +82,18 @@ class Generator(nn.Module):
         x, _ = self.lstm4(x)
         x = self.dense(x)
         return torch.tanh(x)  # Garante que a saída está entre -1 e 1
+
+
+    def get_activations(self, x, z):
+        z = z.unsqueeze(dim = 1).expand(-1, x.size(1), -1)
+
+        x = torch.cat([x, z], dim=-1)
+
+        x, _ = self.lstm1(x)
+        x1 = self.lstm2(x1)
+        x2 = self.lstm3(x2)
+        x3 = self.lstm4(x3)
+        
+        return x
 
 

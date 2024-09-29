@@ -17,9 +17,9 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=str, default='gestures_data.json', help='Path to the dataset')
-    parser.add_argument('--batch_size', type=int, default=512, help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=256, help='Batch size')
    
-    parser.add_argument('--num_epoch', type=int, default=100, help='Number of epochs')
+    parser.add_argument('--num_epoch', type=int, default=1000, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=0.0002, help='Learning rate')
     parser.add_argument('--beta1', type=float, default=0.5, help='Beta1')
     parser.add_argument('--beta2', type=float, default=0.999, help='Beta2')
